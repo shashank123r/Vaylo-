@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vaylo</title>
+<style>
+  :root { --canvas:#F7F5F0; --surface:#fff; --ink:#252824; --muted:#5B5F58; --brick:#B84A3A; --brick-hover:#A2402F; --stone:#E7E3DA; --stone3:#D8D3C8; --ok:#3F7A54; --warn:#B5832F; }
+  * { box-sizing:border-box; }
+  body { width:100%; margin:0; font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--canvas); color:var(--ink); }
+  .wrap { padding:14px 16px; }
+  .brand { display:flex; align-items:center; gap:8px; font-weight:600; }
+  .logo { width:22px; height:22px; border-radius:6px; background:var(--brick); color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; }
+  h3 { margin:10px 0 4px; font-size:15px; } h4 { margin:12px 0 4px; font-size:13px; }
+  p { margin:6px 0; } ul { margin:6px 0; padding-left:18px; } li { margin:2px 0; }
+  .muted { color:var(--muted); } .ok { color:var(--ok); } .warn { color:var(--warn); }
+  .card { background:var(--surface); border:1px solid var(--stone); border-radius:8px; padding:12px; margin:10px 0; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  label { display:block; font-size:12px; font-weight:600; margin:8px 0 4px; }
+  input { width:100%; padding:8px; border:1px solid var(--stone3); border-radius:6px; font-size:13px; background:var(--surface); color:var(--ink); }
+  .btn { padding:8px 12px; border:1px solid var(--stone3); background:var(--surface); color:var(--ink); border-radius:6px; font-size:13px; cursor:pointer; }
+  .btn.primary { background:var(--brick); color:#fff; border-color:var(--brick); }
+  .btn.primary:hover { background:var(--brick-hover); }
+  .btn.block { width:100%; }
+  .link { color:var(--brick); font-size:13px; display:inline-block; margin-top:8px; }
+  .hdr { display:flex; justify-content:space-between; align-items:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="logo">V</span> Vaylo Autofill</div>
+
+  <div id="disconnected" style="display:none">
+    <div class="card">
+      <h3>Connect your account</h3>
+      <p class="muted">In Vaylo, go to Settings → Browser extension, generate a pairing code, and paste it here. You only do this once.</p>
+      <label for="code">Pairing code</label>
+      <input id="code" type="text" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="jfx_…" />
+      <div class="row"><button id="connectBtn" class="btn primary block">Connect</button></div>
+      <div id="connectMsg" class="muted"></div>
+    </div>
+  </div>
+
+  <div id="connected" style="display:none">
+    <div class="card">
+      <div class="hdr">
+        <div id="acct"></div>
+        <button id="disconnectBtn" class="btn">Disconnect</button>
+      </div>
+      <div id="quota" class="muted" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:10px"><button id="fillBtn" class="btn primary block">Fill this application</button></div>
+    </div>
+    <div id="result"></div>
+  </div>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

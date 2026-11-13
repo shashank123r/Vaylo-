@@ -1,0 +1,75 @@
+# Production stack for the JobFlow host (Postgres + Next.js app).
+# Secrets come from the .env file created on the server (never committed).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: jobflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jobflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: jobflow
+    volumes:
+      - jobflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobflow -d jobflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jobflow-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_URL: ${APP_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      DATABASE_URL: postgresql://jobflow:${POSTGRES_PASSWORD}@db:5432/jobflow?schema=public
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-au.anthropic.claude-haiku-4-5-20251001-v1:0}
+      BEDROCK_REGION: ${BEDROCK_REGION:-ap-southeast-2}
+      JOBS_PROVIDER: ${JOBS_PROVIDER:-arbeitnow}
+      BILLING_PROVIDER: ${BILLING_PROVIDER:-dev}
+      ALLOW_DEV_BILLING: ${ALLOW_DEV_BILLING:-false}
+      CASHFREE_APP_ID: ${CASHFREE_APP_ID:-}
+      CASHFREE_SECRET_KEY: ${CASHFREE_SECRET_KEY:-}
+      CASHFREE_ENV: ${CASHFREE_ENV:-sandbox}
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: /app/storage/uploads
+      AUTO_APPLY_LIVE_SUBMIT: ${AUTO_APPLY_LIVE_SUBMIT:-false}
+      # In-process SERVER auto-apply worker (claim loop, concurrency 1, launch-on-demand
+      # Chromium, close-after). Off by default; enable on exactly ONE instance.
+      AUTOAPPLY_WORKER_INPROC: ${AUTOAPPLY_WORKER_INPROC:-false}
+      AUTOAPPLY_WORKER_POLL_MS: ${AUTOAPPLY_WORKER_POLL_MS:-5000}
+      AUTOAPPLY_WORKER_LOCK_MS: ${AUTOAPPLY_WORKER_LOCK_MS:-120000}
+    volumes:
+      - jobflow_uploads:/app/storage
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: jobflow-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - jobflow_caddy_data:/data
+      - jobflow_caddy_config:/config
+
+volumes:
+  jobflow_pgdata:
+  jobflow_uploads:
+  jobflow_caddy_data:
+  jobflow_caddy_config:

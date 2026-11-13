@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Apply</title></head><body>
+<h1>Apply</h1>
+<form id="f">
+  <label for="name">Full name</label><input id="name" name="name" required>
+  <label for="email">Email</label><input id="email" name="email" type="email" required>
+  <button type="submit">Submit application</button>
+</form>
+<div id="out"></div>
+<script>
+document.getElementById('f').addEventListener('submit', function(e){
+  e.preventDefault();
+  document.getElementById('out').innerHTML = '<div role="alert">Please correct the highlighted fields before submitting.</div>';
+});
+</script>
+</body></html>

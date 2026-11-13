@@ -1,0 +1,18 @@
+<!doctype html><html><body>
+<h1 class="app-title">Senior ML Engineer</h1>
+<div class="company-name">Acme Inc</div>
+<form id="application_form" action="https://boards.greenhouse.io/acme/jobs/1">
+  <label for="first_name">First Name *</label><input id="first_name" name="job_application[first_name]" required>
+  <label for="last_name">Last Name *</label><input id="last_name" name="job_application[last_name]" required>
+  <label for="email">Email *</label><input id="email" type="email" name="job_application[email]" required>
+  <label for="phone">Phone</label><input id="phone" type="tel" name="job_application[phone]">
+  <label for="linkedin">LinkedIn Profile</label><input id="linkedin" type="url" name="job_application[urls][LinkedIn]">
+  <label for="resume">Resume/CV *</label><input id="resume" type="file" name="job_application[resume]" required>
+  <label for="work_auth">Are you authorized to work in the US and will you require visa sponsorship? *</label>
+  <select id="work_auth" name="job_application[answers][1]" required><option>Yes</option><option>No</option></select>
+  <label for="cover">Cover Letter</label><textarea id="cover" name="job_application[cover_letter]"></textarea>
+  <label for="custom1">What is your favorite programming language?</label><input id="custom1" name="job_application[answers][2]">
+  <input type="hidden" name="authenticity_token" value="xyz">
+  <button type="submit">Submit Application</button>
+</form>
+</body></html>

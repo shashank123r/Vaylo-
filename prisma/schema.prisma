@@ -1,0 +1,607 @@
+// JobFlow data model.
+// Tenant isolation rule: every user-owned resource carries userId and is always
+// queried with a userId filter. See src/lib/authz.ts for the enforcement helper.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum PlanTier {
+  FREE
+  PRO
+}
+
+enum ApplicationStatus {
+  SAVED
+  DRAFTING
+  READY
+  SUBMITTED
+  INTERVIEWING
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+enum DocKind {
+  RESUME
+  COVER_LETTER
+}
+
+enum UsageKind {
+  RESUME_PARSE
+  JOB_MATCH
+  RESUME_TAILOR
+  COVER_LETTER
+  ANSWER_DRAFT
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  role          Role      @default(USER)
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions       Session[]
+  profile        Profile?
+  resumeFiles    ResumeFile[]
+  resumeVersions ResumeVersion[]
+  coverLetters   CoverLetter[]
+  jobs           Job[]
+  applications   Application[]
+  answers        ApplicationAnswer[]
+  subscription   Subscription?
+  usageEvents    UsageEvent[]
+  extension      ExtensionConnection?
+  submissions    SubmissionResult[]
+  reservations   SubmissionReservation[]
+  autoApplyTasks AutoApplyTask[]
+  answerBank     AnswerBankEntry[]
+}
+
+// Reusable answer bank: the user answers a custom application question once and it is
+// reused on future forms WITHOUT any LLM call. Keyed by a hash of the NORMALIZED
+// question so phrasing variants collapse. Named AnswerBankEntry to avoid colliding
+// with the existing per-job ApplicationAnswer model.
+enum AnswerSource {
+  USER // the user typed/saved it in their answer library
+  CAPTURED // captured from a submitted application (opt-in; see code for safety gating)
+}
+
+model AnswerBankEntry {
+  id            String       @id @default(cuid())
+  userId        String
+  questionHash  String // sha256 of the normalized question
+  questionLabel String       @db.Text // original question text, for display
+  answer        String       @db.Text
+  source        AnswerSource @default(USER)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionHash])
+  @@index([userId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique // we store only a hash of the session token
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Provenance of a profile value: entered by the user vs. extracted from a resume.
+enum FieldSource {
+  MANUAL
+  RESUME
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  headline    String?
+  location    String?
+  phone       String?
+  website     String?
+  linkedin    String?
+  github      String?
+  summary     String?  @db.Text
+  // Preferences used for job matching and autofill.
+  targetTitles    String[] @default([])
+  preferredRemote Boolean  @default(true)
+  minSalary       Int?
+  workAuth        String?
+  onboardingDone  Boolean  @default(false)
+  // Per-job LLM resume tailoring. Default OFF = pure autofill with the standard
+  // uploaded resume, zero LLM cost per application. Pro users may turn it ON.
+  tailorPerJob    Boolean  @default(false)
+
+  // --- Section-wise profile: personal details ---
+  legalName     String?
+  preferredName String?
+  city          String?
+  country       String?
+  address       String?
+  portfolio     String?
+
+  // --- Work preferences ---
+  targetLocations  String[] @default([])
+  workplaceType    String? // remote | hybrid | onsite | flexible
+  employmentType   String? // full_time | part_time | contract | internship | temporary
+  maxSalary        Int?
+  salaryCurrency   String?
+  salaryPeriod     String? // year | month | hour
+  noticePeriod     String?
+  openToRelocation Boolean? // null = unknown / not provided
+  willingToTravel  String? // none | occasional | frequent | unknown
+
+  // --- Job application questions (factual; never inferred) ---
+  needsSponsorship  Boolean? // null = unknown / undeclared
+  availabilityDate  String?
+  yearsExperience   Int?
+  workAuthByCountry Json? // { "US": "citizen", "UK": "requires_sponsorship", ... }
+
+  // --- Additional declarations (sensitive, optional, user-controlled, EXCLUDED
+  //     from the completion denominator; null = not provided, never inferred) ---
+  gender           String?
+  ethnicity        String?
+  disabilityStatus String?
+  veteranStatus    String?
+  criminalHistory  String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experience     WorkExperience[]
+  education      Education[]
+  skills         SkillItem[]
+  projects       Project[]
+  certifications Certification[]
+  fieldMeta      ProfileFieldMeta[]
+}
+
+// Per-scalar-field provenance + review state for the Profile. Only fields that can
+// be resume-derived or need review are tracked here; absence means plain MANUAL.
+model ProfileFieldMeta {
+  id            String      @id @default(cuid())
+  profileId     String
+  field         String // e.g. "phone", "city", "yearsExperience"
+  source        FieldSource @default(MANUAL)
+  confirmed     Boolean     @default(false)
+  // A resume-derived value that conflicts with a confirmed manual value, held for
+  // the user to review instead of silently overwriting.
+  conflictValue String?     @db.Text
+  updatedAt     DateTime    @updatedAt
+  profile       Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, field])
+  @@index([profileId])
+}
+
+model WorkExperience {
+  id         String      @id @default(cuid())
+  profileId  String
+  company    String
+  title      String
+  location   String?
+  startDate  String? // free-form "Apr 2026" to avoid false precision
+  endDate    String?
+  current    Boolean     @default(false)
+  highlights String[]    @default([])
+  order      Int         @default(0)
+  source     FieldSource @default(MANUAL)
+  confirmed  Boolean     @default(false)
+  profile    Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model Education {
+  id             String      @id @default(cuid())
+  profileId      String
+  school         String
+  degree         String?
+  field          String?
+  startDate      String?
+  endDate        String?
+  grade          String? // raw as stated, e.g. "3.8", "First Class" — never converted
+  gradeScale     String? // e.g. "GPA 4.0", "CGPA 10", "percentage", "UK honours"
+  graduationStatus String? // completed | in_progress | expected
+  order          Int         @default(0)
+  source         FieldSource @default(MANUAL)
+  confirmed      Boolean     @default(false)
+  profile        Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model SkillItem {
+  id        String      @id @default(cuid())
+  profileId String
+  name      String
+  category  String?
+  source    FieldSource @default(MANUAL)
+  confirmed Boolean     @default(false)
+  profile   Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model Project {
+  id           String      @id @default(cuid())
+  profileId    String
+  name         String
+  description  String?     @db.Text
+  technologies String[]    @default([])
+  url          String?
+  outcome      String? // verifiable outcome, as stated
+  order        Int         @default(0)
+  source       FieldSource @default(MANUAL)
+  confirmed    Boolean     @default(false)
+  profile      Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model Certification {
+  id           String      @id @default(cuid())
+  profileId    String
+  name         String
+  issuer       String?
+  issueDate    String?
+  expiryDate   String?
+  credentialId String?
+  url          String?
+  order        Int         @default(0)
+  source       FieldSource @default(MANUAL)
+  confirmed    Boolean     @default(false)
+  profile      Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model ResumeFile {
+  id          String   @id @default(cuid())
+  userId      String
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String // key into private storage, never a public URL
+  parsedText  String?  @db.Text
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ResumeVersion {
+  id         String   @id @default(cuid())
+  userId     String
+  jobId      String?
+  label      String
+  contentMd  String   @db.Text // tailored resume content (markdown)
+  model      String? // which LLM produced it, for provenance
+  // --- immutable per-job artifact (additive) ---
+  contentHash String? // sha256 of contentMd — integrity / immutability check
+  inputsHash  String? // sha256 of the PROFILE/resume freshness inputs — reuse only when unchanged
+  roleKey     String? // normalized role (title) — reuse one tailored resume across same-role jobs
+  storageKey  String? // private storage key of the rendered PDF to upload (owner-only)
+  fileHash    String? // sha256 of the rendered PDF bytes — the exact file to attach
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job        Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([jobId])
+  @@index([userId, jobId, inputsHash])
+}
+
+model CoverLetter {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String?
+  contentMd String   @db.Text
+  model     String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([jobId])
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  company     String
+  location    String?
+  url         String?
+  source      String? // greenhouse | lever | ashby | manual | ...
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match        JobMatch?
+  resumeVers   ResumeVersion[]
+  coverLetters CoverLetter[]
+  application  Application?
+  answers      ApplicationAnswer[]
+
+  @@index([userId])
+}
+
+model JobMatch {
+  id          String   @id @default(cuid())
+  jobId       String   @unique
+  score       Int // 0-100
+  strengths   String[] @default([])
+  gaps        String[] @default([])
+  rationale   String?  @db.Text
+  model       String?
+  createdAt   DateTime @default(now())
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model ApplicationAnswer {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String
+  question  String   @db.Text
+  answer    String   @db.Text
+  approved  Boolean  @default(false) // user must review before use
+  model     String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([jobId])
+}
+
+model Application {
+  id            String            @id @default(cuid())
+  userId        String
+  jobId         String            @unique
+  status        ApplicationStatus @default(SAVED)
+  notes         String?           @db.Text
+  submittedAt   DateTime?
+  // Submission is only ever recorded after explicit user confirmation.
+  confirmedByUser Boolean         @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job           Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  events        ApplicationEvent[]
+
+  @@index([userId])
+}
+
+model ApplicationEvent {
+  id            String      @id @default(cuid())
+  applicationId String
+  type          String // status_change | note | autofill_started | submitted | ...
+  detail        String?     @db.Text
+  createdAt     DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+model Subscription {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  tier               PlanTier  @default(FREE)
+  provider           String    @default("dev") // dev | stripe
+  externalId         String? // stripe subscription id
+  stripeCustomerId   String?   @unique
+  status             String? // active | trialing | past_due | canceled | unpaid | incomplete
+  cancelAtPeriodEnd  Boolean   @default(false)
+  periodEnd          DateTime? // current period end (entitlement expiry)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Lifetime FREE allowance keyed by normalized email. Deliberately NOT related to
+// User, so deleting/recreating an account does not reset the free allowance.
+// Only FREE confirmed successes increment this; subscribed usage does not.
+model EmailAllowance {
+  email             String   @id // normalized (trim + lowercase)
+  freeConfirmedUsed Int      @default(0)
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+}
+
+// Processed external (Stripe) webhook events, for idempotent/replayed handling.
+model WebhookEvent {
+  id        String   @id // provider event id
+  type      String
+  createdAt DateTime @default(now())
+}
+
+model UsageEvent {
+  id        String    @id @default(cuid())
+  userId    String
+  kind      UsageKind
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, createdAt])
+}
+
+model ExtensionConnection {
+  id         String    @id @default(cuid())
+  userId     String    @unique
+  tokenHash  String    @unique // sha256 of the pairing token; raw token shown once
+  lastSeenAt DateTime?
+  expiresAt  DateTime // short-lived; re-pair after expiry
+  revokedAt  DateTime? // set when the user revokes; blocks the token immediately
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum SubmissionOutcome {
+  CONFIRMED
+  FAILED
+  UNCERTAIN
+}
+
+// Two-phase submission capacity accounting for the daily Pro quota and safe
+// concurrency. A reservation is created BEFORE an auto-submit attempt so concurrent
+// workers cannot overshoot; it is finalized CONFIRMED only on reliable success
+// evidence, RELEASED on confirmed failure (frees capacity), or UNCERTAIN on an
+// ambiguous outcome (HOLDS capacity until reconciled, preventing duplicate retries).
+enum ReservationStatus {
+  RESERVED // capacity held, attempt in progress
+  CONFIRMED // reliable success evidence -> counts toward the day's quota
+  RELEASED // confirmed failure / not submitted -> capacity freed, never counts
+  UNCERTAIN // ambiguous -> holds capacity until reconciled
+}
+
+model SubmissionReservation {
+  id        String            @id @default(cuid())
+  userId    String
+  clientRef String // idempotency key per attempt
+  jobId     String?
+  day       String // IST (Asia/Kolkata) calendar day YYYY-MM-DD this counts toward
+  status    ReservationStatus @default(RESERVED)
+  evidence  String?           @db.Text
+  reason    String?           @db.Text
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientRef])
+  @@index([userId, day, status])
+  @@index([userId, status])
+}
+
+// One row per submission attempt reported by the extension. Idempotent per
+// (userId, clientRef). `counted` is true ONLY when a CONFIRMED success consumed
+// a free-quota slot (or the user is subscribed). Failed/uncertain never count.
+model SubmissionResult {
+  id            String            @id @default(cuid())
+  userId        String
+  jobId         String
+  applicationId String?
+  clientRef     String // idempotency key generated by the extension per attempt
+  outcome       SubmissionOutcome
+  counted       Boolean           @default(false)
+  detail        String?           @db.Text
+  createdAt     DateTime          @default(now())
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientRef])
+  @@index([userId, counted])
+}
+
+// ---- Durable, resource-efficient hybrid auto-apply queue --------------------
+// A single bounded worker (server-side, concurrency 1, launch-on-demand browser)
+// drains SERVER tasks; the user's extension drains EXTENSION tasks when it is
+// online. Tasks are claimed with FOR UPDATE SKIP LOCKED and a visibility timeout
+// (lockedUntil), so a crashed/restarted worker's in-flight tasks are re-claimed.
+// Nothing lives in memory: if the user's browser is closed, EXTENSION tasks simply
+// wait in the queue until the extension reconnects and claims them.
+
+enum AutoApplyChannel {
+  SERVER // server-side Playwright; only public no-login ATS where automation is permitted
+  EXTENSION // runs in the user's own browser via the extension (login/complex/unsupported server-side)
+}
+
+enum AutoApplyTaskStatus {
+  QUEUED // waiting to be claimed
+  CLAIMED // claimed by a worker/extension, in progress (has a lock)
+  OPENED // the application page was opened
+  AUTOFILLED // fields filled (not submitted)
+  NEEDS_USER // paused: login/CAPTCHA/MFA/sensitive question/quota — needs the user
+  SUBMITTED // submitted with reliable evidence
+  UNCERTAIN // submit attempted but not confirmed — reconcile before retry
+  FAILED // gave up after bounded retries, or a hard error
+  // --- richer funnel states (additive; added by the hardening migration) ---
+  DISCOVERED // found by discovery, not yet matched
+  MATCHED // passed relevance matching, eligible to apply
+  APPLICATION_FORM_FOUND // a real application form was detected on the page
+  FILLED_AND_VALIDATED // fields filled AND re-read to confirm the values persisted
+  SUBMITTING // submit initiated, awaiting the result
+  SUBMITTED_CONFIRMED // submitted AND confirmed by on-page evidence
+  NEEDS_USER_ACTION // paused for a required human action (sensitive question, missing fact)
+  BLOCKED // paused by a login wall / CAPTCHA / anti-bot — never bypassed
+  EXPIRED // the posting is closed/expired/no longer accepting applications
+}
+
+model AutoApplyTask {
+  id             String              @id @default(cuid())
+  userId         String
+  runId          String // groups all tasks created by one run
+  jobId          String? // the Job row this task applies to (if created)
+  company        String
+  title          String
+  jobUrl         String
+  normalizedUrl  String // dedupe key component (normalized application URL)
+  channel        AutoApplyChannel
+  status         AutoApplyTaskStatus @default(QUEUED)
+  idempotencyKey String // unique per user: dedupe identical jobs across runs
+  clientRef      String // links to the submission reservation / audit row
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(3)
+  autoSubmit     Boolean             @default(false) // may this task submit (post-gate)?
+  authorized     Boolean             @default(false) // user authorized live submission for the run
+  claimedBy      String? // worker id, or "ext:<connectionId>"
+  claimedAt      DateTime?
+  lockedUntil    DateTime? // visibility timeout; a non-terminal task past this is re-claimable
+  scheduledAt    DateTime            @default(now()) // earliest eligible time (retry backoff)
+  evidence       String? // confirmation text/url actually observed
+  reason         String? // human-readable status reason / error
+  // --- hardening: durable pause/recovery + funnel instrumentation (additive) ---
+  stage          String? // last durable stage, for resume-after-pause (e.g. "filled", "blocked_captcha")
+  recoveryUrl    String? // exact URL to resume at after the user clears a login/CAPTCHA
+  resumeVersionId String? // the immutable tailored-resume artifact chosen for THIS job
+  fieldsFilled   Int                 @default(0) // count of fields verified-filled (funnel)
+  uploadVerified Boolean             @default(false) // the correct resume file was confirmed attached
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  user   User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events AutoApplyTaskEvent[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([channel, status, scheduledAt])
+  @@index([userId, runId])
+  @@index([userId, channel, status])
+}
+
+// Append-only event history for a task's status transitions (no fake data; every
+// row is a real transition the worker/extension recorded). Per-user scoped.
+model AutoApplyTaskEvent {
+  id        String              @id @default(cuid())
+  taskId    String
+  userId    String
+  status    AutoApplyTaskStatus
+  detail    String?
+  createdAt DateTime            @default(now())
+
+  task AutoApplyTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId, createdAt])
+}

@@ -1,0 +1,203 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Inter when available (loaded via next/font in the root layout), falling back
+     to the platform UI font so the app never renders in a serif/Times fallback. */
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-canvas text-ink antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+  }
+  /* Restrained, editorial heading hierarchy. Page utilities still override. */
+  h1 {
+    @apply text-ink font-semibold tracking-tighter2;
+  }
+  h2,
+  h3,
+  h4 {
+    @apply text-ink font-semibold tracking-tightish;
+  }
+  a {
+    @apply text-brick underline-offset-2 decoration-stone-400 hover:underline;
+  }
+  /* One consistent, accessible focus ring for every keyboard-focused control. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible {
+    @apply outline-none ring-2 ring-brick/35 ring-offset-2 ring-offset-canvas rounded-md;
+  }
+  ::selection {
+    background: #f3e8e4;
+  }
+  hr {
+    @apply border-stone-200;
+  }
+}
+
+@layer components {
+  /* ---- Layout primitives ------------------------------------------------- */
+  /* Consistent page gutters + vertical rhythm. Width is set per-view by pairing
+     with a max-w-* utility (max-w-content / max-w-reading / max-w-prose). */
+  .page {
+    @apply mx-auto w-full px-5 py-8 sm:px-8 sm:py-10;
+  }
+  .page-header {
+    @apply mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
+  }
+  .page-title {
+    @apply text-2xl font-semibold tracking-tighter2 text-ink sm:text-[1.7rem];
+  }
+  .page-subtitle {
+    @apply mt-1.5 max-w-reading text-sm leading-relaxed text-ink-muted;
+  }
+  /* Small uppercase label that opens a section — editorial, not a heavy heading. */
+  .section-label {
+    @apply mb-3 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-ink-faint;
+  }
+
+  /* ---- Buttons ----------------------------------------------------------- */
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium
+           transition-all duration-150 ease-apple
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-brick/35 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
+           active:scale-[0.985]
+           disabled:pointer-events-none disabled:opacity-45 disabled:active:scale-100;
+  }
+  /* Primary action: graphite (near-charcoal), not the brand accent. */
+  .btn-primary {
+    @apply btn bg-graphite text-white shadow-card hover:bg-graphite-hover;
+  }
+  /* Accent action: unified with the primary button so there is ONE button color
+     across the product (graphite). The brand clay stays for links/active states. */
+  .btn-accent {
+    @apply btn bg-graphite text-white shadow-card hover:bg-graphite-hover;
+  }
+  .btn-secondary {
+    @apply btn border border-stone-300 bg-surface text-ink hover:border-stone-400 hover:bg-surface-2;
+  }
+  .btn-ghost {
+    @apply btn text-ink-muted hover:bg-stone-200/60 hover:text-ink active:scale-100;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-[0.8rem];
+  }
+
+  /* ---- Surfaces ---------------------------------------------------------- */
+  .card {
+    @apply rounded-lg border border-stone-200 bg-surface shadow-card;
+  }
+  .card-interactive {
+    @apply card transition-all duration-150 ease-apple hover:border-stone-300 hover:shadow-card-hover;
+  }
+
+  /* ---- Forms ------------------------------------------------------------- */
+  .input,
+  .select,
+  .textarea {
+    @apply w-full rounded-md border border-stone-300 bg-surface px-3 py-2 text-sm text-ink
+           transition-all duration-150 ease-apple
+           placeholder:text-ink-faint
+           hover:border-stone-400
+           focus:border-brick focus:shadow-focus focus:outline-none;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+  .field-hint {
+    @apply mt-1.5 text-xs leading-relaxed text-ink-muted;
+  }
+
+  /* ---- Badges / status --------------------------------------------------- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-md border border-stone-200 bg-surface-2 px-2 py-0.5 text-xs font-medium text-ink-muted;
+  }
+  .badge-accent {
+    @apply badge border-brick/20 bg-brick-soft text-brick;
+  }
+  .badge-success {
+    @apply badge border-success/20 text-success;
+    background: #eef4ef;
+  }
+  .badge-warning {
+    @apply badge border-warning/25 text-warning;
+    background: #f6efe0;
+  }
+
+  /* ---- Stats (dashboard figures) ---------------------------------------- */
+  .stat-value {
+    @apply text-[1.6rem] font-semibold tracking-tighter2 text-ink;
+  }
+  .stat-label {
+    @apply mt-0.5 text-xs font-medium text-ink-muted;
+  }
+
+  /* ---- Empty state ------------------------------------------------------- */
+  .empty-state {
+    @apply flex flex-col items-center justify-center rounded-lg border border-dashed border-stone-300 bg-surface-2 px-6 py-12 text-center;
+  }
+
+  /* ---- Navigation rail --------------------------------------------------- */
+  .nav-item {
+    @apply flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium no-underline
+           text-ink-muted transition-colors duration-150 ease-apple
+           hover:bg-stone-200/70 hover:text-ink;
+  }
+  .nav-item-active {
+    @apply bg-surface text-ink shadow-card;
+  }
+
+  /* ---- Markdown previews (AI resume / cover letter) ---------------------- */
+  .md-view > :first-child {
+    @apply mt-0;
+  }
+  .md-view h1 {
+    @apply text-lg font-semibold text-ink;
+  }
+  .md-view h2 {
+    @apply mt-4 border-b border-stone-200 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted;
+  }
+  .md-view h3 {
+    @apply mt-3 text-sm font-semibold text-ink;
+  }
+  .md-view p {
+    @apply mt-1 text-sm leading-relaxed text-ink;
+  }
+  .md-view ul {
+    @apply mt-1 list-disc space-y-1 pl-5 text-sm leading-relaxed text-ink;
+  }
+  .md-view strong {
+    @apply font-semibold;
+  }
+  .md-view a {
+    @apply text-brick underline;
+  }
+}
+
+/* Respect users who prefer reduced motion: keep everything instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

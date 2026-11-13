@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Vaylo Autofill",
+  "version": "0.5.0",
+  "description": "Search and fill supported job applications in your own browser from your approved Vaylo profile. You stay in control of submission.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Vaylo Autofill"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": ["storage", "activeTab", "scripting", "sidePanel", "tabs", "tabGroups", "alarms"],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:3000/*",
+        "https://vaylo.co.in/*",
+        "https://www.vaylo.co.in/*",
+        "http://13.238.23.72/*"
+      ],
+      "js": ["bridge.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

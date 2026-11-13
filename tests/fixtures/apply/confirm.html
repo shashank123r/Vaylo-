@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Apply</title></head><body>
+<h1>Software Engineer — Apply</h1>
+<form id="f">
+  <label for="name">Full name</label><input id="name" name="name" required>
+  <label for="email">Email</label><input id="email" name="email" type="email" required>
+  <label for="phone">Phone</label><input id="phone" name="phone" type="tel">
+  <label for="linkedin">LinkedIn</label><input id="linkedin" name="linkedin">
+  <label for="resume">Resume / CV</label><input id="resume" name="resume" type="file">
+  <button type="submit">Submit application</button>
+</form>
+<div id="out"></div>
+<script>
+document.getElementById('f').addEventListener('submit', function(e){
+  e.preventDefault();
+  if(!document.getElementById('name').value || !document.getElementById('email').value){ return; }
+  document.body.innerHTML = '<h1>Application received. Thank you for applying.</h1>';
+});
+</script>
+</body></html>
