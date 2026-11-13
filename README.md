@@ -7,17 +7,12 @@ You confirm before anything is submitted.
 
 ## Demo
 
-<video src="https://github.com/shashank123r/Vaylo-/raw/main/docs/media/vaylo-promo.mp4" poster="https://github.com/shashank123r/Vaylo-/raw/main/docs/media/vaylo-poster.jpg" controls muted width="100%"></video>
+[![Vaylo demo](docs/media/vaylo-demo.gif)](https://github.com/shashank123r/Vaylo-/raw/main/docs/media/vaylo-promo.mp4)
 
-> ▶ If the player doesn't load inline, [watch the promo here](https://github.com/shashank123r/Vaylo-/raw/main/docs/media/vaylo-promo.mp4).
+▶ [Watch the full 58-second promo in HD](https://github.com/shashank123r/Vaylo-/raw/main/docs/media/vaylo-promo.mp4)
 
 > 📖 **New here? Read [`docs/OVERVIEW.md`](docs/OVERVIEW.md)** — an illustrated,
 > screen-by-screen tour of what the app does (no code required).
-
-> **Status: verified foundation, not a finished product.** This is an honest,
-> running base, not a production-ready or commercially sellable SaaS. See
-> [Build status](#build-status) for exactly what is implemented and verified
-> versus what is scaffolded or not yet built. Nothing here fakes success.
 
 ## Build status
 
