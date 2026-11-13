@@ -20,3 +20,6 @@ _promo/
 *.mp4
 *.webm
 *.tsbuildinfo
+
+# keep the README demo video
+!docs/media/vaylo-promo.mp4

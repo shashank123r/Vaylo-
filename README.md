@@ -5,6 +5,12 @@ to each role with an LLM, draft application answers for your review, autofill re
 application forms through a companion Chrome extension, and track every submission.
 You confirm before anything is submitted.
 
+## Demo
+
+<video src="https://github.com/shashank123r/Vaylo-/raw/main/docs/media/vaylo-promo.mp4" poster="https://github.com/shashank123r/Vaylo-/raw/main/docs/media/vaylo-poster.jpg" controls muted width="100%"></video>
+
+> ▶ If the player doesn't load inline, [watch the promo here](https://github.com/shashank123r/Vaylo-/raw/main/docs/media/vaylo-promo.mp4).
+
 > 📖 **New here? Read [`docs/OVERVIEW.md`](docs/OVERVIEW.md)** — an illustrated,
 > screen-by-screen tour of what the app does (no code required).
 
